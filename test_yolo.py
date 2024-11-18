@@ -27,27 +27,34 @@ def build_bboxes(bbox_path='data/Public_leaderboard_data/test1_bbox.txt'):
 if __name__ == '__main__':
 
     # Load a model
-    model = YOLO("runs/segment/yolo_clean/weights/best.pt")
+    model = YOLO("runs/segment/yolo_clean_16/weights/best.pt")
     test_path = 'data/Public_leaderboard_data/test1_images_clean/'
     pred_path = 'data/Public_leaderboard_data/test_labels/'
+    pred_path_nopost = 'data/Public_leaderboard_data/test_labels_nopost/'
 
     bbox_dict = build_bboxes()
 
     for folder in os.listdir(test_path):
         print(f'Processing {test_path}/{folder}')
         os.makedirs(os.path.join(pred_path, folder), exist_ok=True)
+        os.makedirs(os.path.join(pred_path_nopost, folder), exist_ok=True)
+        os.makedirs(os.path.join(pred_path_nopost + '_yolo', folder), exist_ok=True)
         imgs = os.listdir(os.path.join(test_path, folder))
         results = model([os.path.join(test_path, folder, img)
                          for img in imgs])
         for img, res in zip(imgs, results):
             pred = np.zeros((512, 512), dtype=np.uint8)
+            pred_nopost = np.zeros((512, 512), dtype=np.uint8)
+
             if res.masks is not None:
+                res.save(filename=os.path.join(pred_path_nopost + '_yolo', folder, img))
                 labels = res.boxes.cls.cpu().numpy().astype(int) + 1
                 masks = res.masks.data.cpu().numpy()
 
                 bboxes = bbox_dict[(folder, img)]
 
                 for idx, obj_id in enumerate(labels):
+                    pred_nopost[masks[idx] > 0] = obj_id
                     if obj_id not in bboxes:
                         continue
                     x1, y1, x2, y2 = bboxes[obj_id]
@@ -61,6 +68,8 @@ if __name__ == '__main__':
 
                     pred[mask > 0] = obj_id
 
+            image = Image.fromarray(pred_nopost)
+            image.save(os.path.join(pred_path_nopost, folder, img))
             image = Image.fromarray(pred)
             image.save(os.path.join(pred_path, folder, img))
 
